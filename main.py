@@ -10,12 +10,36 @@ import random
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import uvicorn
+from datetime import datetime
 
 print("Starting Medical Triage Environment...")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.environment import MedicalTriageEnv
 from src.models import TriageAction
+
+# Helper function for JSON serialization
+def serialize_observation(obs):
+    """Convert observation to JSON-serializable dict"""
+    obs_dict = obs.dict()
+    # Convert datetime objects to ISO format strings
+    if 'timestamp' in obs_dict and isinstance(obs_dict['timestamp'], datetime):
+        obs_dict['timestamp'] = obs_dict['timestamp'].isoformat()
+    
+    # Handle patient datetime fields
+    for patient_list in ['waiting_patients', 'triaged_patients', 'active_patients']:
+        if patient_list in obs_dict:
+            for patient in obs_dict[patient_list]:
+                if 'arrival_time' in patient and isinstance(patient['arrival_time'], datetime):
+                    patient['arrival_time'] = patient['arrival_time'].isoformat()
+                if 'triage_time' in patient and patient['triage_time']:
+                    patient['triage_time'] = patient['triage_time'].isoformat() if isinstance(patient['triage_time'], datetime) else patient['triage_time']
+                if 'seen_time' in patient and patient['seen_time']:
+                    patient['seen_time'] = patient['seen_time'].isoformat() if isinstance(patient['seen_time'], datetime) else patient['seen_time']
+                if 'discharged_time' in patient and patient['discharged_time']:
+                    patient['discharged_time'] = patient['discharged_time'].isoformat() if isinstance(patient['discharged_time'], datetime) else patient['discharged_time']
+    
+    return obs_dict
 
 # Initialize
 env = MedicalTriageEnv(max_steps=50, random_seed=42)
@@ -34,7 +58,8 @@ async def reset_endpoint():
         print("Reset endpoint called")
         observation = env.reset()
         print("Reset successful")
-        return JSONResponse(content={"status": "ok", "observation": observation.dict()})
+        obs_dict = serialize_observation(observation)
+        return JSONResponse(content={"status": "ok", "observation": obs_dict})
     except Exception as e:
         print(f"Reset error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -56,8 +81,9 @@ async def step_endpoint(request: Request):
             initiate_resuscitation=action_data.get("initiate_resuscitation", False)
         )
         observation, reward, done, info = env.step(action)
+        obs_dict = serialize_observation(observation)
         return JSONResponse(content={
-            "observation": observation.dict(),
+            "observation": obs_dict,
             "reward": reward.total,
             "done": done,
             "info": info
@@ -70,7 +96,14 @@ async def step_endpoint(request: Request):
 async def state_endpoint():
     """OpenEnv state endpoint"""
     try:
-        return JSONResponse(content=env.state())
+        state = env.state()
+        # Convert datetime in state
+        if 'current_time' in state and isinstance(state['current_time'], datetime):
+            state['current_time'] = state['current_time'].isoformat()
+        if 'episode_start_time' in state and state['episode_start_time']:
+            if isinstance(state['episode_start_time'], datetime):
+                state['episode_start_time'] = state['episode_start_time'].isoformat()
+        return JSONResponse(content=state)
     except Exception as e:
         print(f"State error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
