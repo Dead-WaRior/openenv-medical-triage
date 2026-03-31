@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "medical-triage-env"
 version = "1.0.0"
-description = "Emergency Department Triage Environment"
+description = "Emergency Department Triage Environment for OpenEnv Hackathon"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -29,6 +29,10 @@ openenv-server = "server.app:main"
 
 [tool.setuptools]
 packages = ["src", "server"]
+
+[tool.setuptools.package-dir]
+src = "src"
+server = "server"
 
 [tool.openenv]
 environment_class = "src.environment.MedicalTriageEnv"
