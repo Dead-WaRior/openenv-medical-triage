@@ -9,6 +9,7 @@ import os
 import json
 import random
 from fastapi import FastAPI, APIRouter
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -38,34 +39,43 @@ class StepResponse(BaseModel):
     info: dict
 
 # OpenEnv Endpoints
-@app.get("/reset")
+@app.post("/reset")
 async def reset_endpoint():
-    """OpenEnv reset endpoint"""
-    global env, observation
+    """OpenEnv reset endpoint - POST method"""
+    global observation
     observation = env.reset()
-    return ResetResponse(
-        status="ok",
-        observation=observation.dict()
-    )
+    return JSONResponse(content={"status": "ok", "observation": observation.dict()})
 
 @app.post("/step")
-async def step_endpoint(request: StepRequest):
-    """OpenEnv step endpoint"""
-    global env, observation
-    # Convert dict to TriageAction
-    action = TriageAction(**request.action)
-    observation, reward, done, info = env.step(action)
-    return StepResponse(
-        observation=observation.dict(),
-        reward=reward.total,
-        done=done,
-        info=info
+async def step_endpoint(request: dict):
+    """OpenEnv step endpoint - POST method"""
+    global observation
+    # Handle both direct dict and {action: {...}} format
+    if "action" in request:
+        action_data = request["action"]
+    else:
+        action_data = request
+    
+    action = TriageAction(
+        patient_id=action_data.get("patient_id", ""),
+        esi_level=action_data.get("esi_level"),
+        assigned_room=action_data.get("assigned_room"),
+        assigned_doctor_id=action_data.get("assigned_doctor_id"),
+        order_tests=action_data.get("order_tests", []),
+        initiate_resuscitation=action_data.get("initiate_resuscitation", False)
     )
+    observation, reward, done, info = env.step(action)
+    return JSONResponse(content={
+        "observation": observation.dict(),
+        "reward": reward.total,
+        "done": done,
+        "info": info
+    })
 
 @app.get("/state")
 async def state_endpoint():
     """OpenEnv state endpoint"""
-    return env.state()
+    return JSONResponse(content=env.state())
 
 # Gradio Dashboard
 def reset_env():
