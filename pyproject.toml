@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medical-triage-env"
+version = "1.0.0"
+description = "Emergency Department Triage Environment for OpenEnv Hackathon"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Team Name", email = "your-email@example.com"}
+]
+dependencies = [
+    "pydantic>=2.0.0",
+    "numpy>=1.24.0",
+    "python-dateutil>=2.8.2",
+    "gradio>=4.0.0",
+    "pandas>=2.0.0",
+    "openai>=1.0.0"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/yasir2690/medical_triage_env"
+"Bug Reports" = "https://github.com/yasir2690/medical_triage_env/issues"
+"Hugging Face Space" = "https://huggingface.co/spaces/yasir2690/medical_triage_env"
+
+[tool.openenv]
+environment_class = "src.environment.MedicalTriageEnv"
