@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import uvicorn
 
+print("Starting Medical Triage Environment...")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.environment import MedicalTriageEnv
@@ -19,6 +20,7 @@ from src.models import TriageAction
 # Initialize
 env = MedicalTriageEnv(max_steps=50, random_seed=42)
 observation = env.reset()
+print("Environment initialized")
 
 # Create FastAPI app
 app = FastAPI(title="Medical Triage Environment")
@@ -27,9 +29,15 @@ app = FastAPI(title="Medical Triage Environment")
 @app.post("/reset")
 async def reset_endpoint():
     """OpenEnv reset endpoint"""
-    global observation
-    observation = env.reset()
-    return JSONResponse(content={"status": "ok", "observation": observation.dict()})
+    try:
+        global observation
+        print("Reset endpoint called")
+        observation = env.reset()
+        print("Reset successful")
+        return JSONResponse(content={"status": "ok", "observation": observation.dict()})
+    except Exception as e:
+        print(f"Reset error: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/step")
 async def step_endpoint(request: Request):
@@ -55,12 +63,17 @@ async def step_endpoint(request: Request):
             "info": info
         })
     except Exception as e:
+        print(f"Step error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.get("/state")
 async def state_endpoint():
     """OpenEnv state endpoint"""
-    return JSONResponse(content=env.state())
+    try:
+        return JSONResponse(content=env.state())
+    except Exception as e:
+        print(f"State error: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.get("/health")
 async def health_endpoint():
@@ -133,4 +146,5 @@ with gr.Blocks(title="Medical Triage Environment") as demo:
 app = gr.mount_gradio_app(app, demo, path="/")
 
 if __name__ == "__main__":
+    print("Starting uvicorn server...")
     uvicorn.run(app, host="0.0.0.0", port=7860)
