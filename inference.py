@@ -1,5 +1,6 @@
 """
 Inference Script for Medical Triage Environment
+Rule-based agent for better baseline scores
 """
 
 import os
@@ -11,8 +12,53 @@ from src.models import TriageAction, ESILevel
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
 MAX_STEPS = 50
 
-def run_episode(env, episode_num, use_random=True):
-    """Run a single episode"""
+
+def rule_based_agent(observation):
+    """
+    Simple rule-based triage agent
+    Follows ESI guidelines: critical first, then by acuity
+    """
+    if not observation.waiting_patients:
+        return None
+    
+    # Find critical patients (ESI 1-2)
+    critical_patients = []
+    for p in observation.waiting_patients:
+        if p.is_critical:
+            critical_patients.append(p)
+        elif p.chief_complaint.value in ["chest_pain", "stroke_symptoms", "head_injury"]:
+            critical_patients.append(p)
+    
+    if critical_patients:
+        # Take the most critical patient
+        patient = critical_patients[0]
+        
+        # Assign ESI based on severity
+        if patient.chief_complaint.value in ["unresponsive", "severe_bleeding"]:
+            esi_level = 1
+        else:
+            esi_level = 2
+    else:
+        # Take first waiting patient, assign ESI 3
+        patient = observation.waiting_patients[0]
+        esi_level = 3
+    
+    # Get available resources
+    room = observation.available_rooms[0] if observation.available_rooms else None
+    doctor = list(observation.available_doctors.keys())[0] if observation.available_doctors else None
+    
+    return TriageAction(
+        patient_id=patient.id,
+        esi_level=esi_level,
+        assigned_room=room,
+        assigned_doctor_id=doctor,
+        order_tests=[],
+        initiate_resuscitation=(esi_level == 1)
+    )
+
+
+def run_episode(env, episode_num, use_rule_based=True):
+    """Run a single episode with rule-based or random agent"""
     print(f"\n--- Episode {episode_num} ---")
     
     observation = env.reset()
@@ -21,7 +67,11 @@ def run_episode(env, episode_num, use_random=True):
     
     for step in range(MAX_STEPS):
         # Get action
-        if use_random and observation.waiting_patients:
+        if use_rule_based:
+            action = rule_based_agent(observation)
+            if action is None:
+                break
+        elif observation.waiting_patients:
             patient = random.choice(observation.waiting_patients)
             action = TriageAction(
                 patient_id=patient.id,
@@ -30,13 +80,6 @@ def run_episode(env, episode_num, use_random=True):
                 assigned_doctor_id=random.choice(list(observation.available_doctors.keys())) if observation.available_doctors else None,
                 order_tests=[],
                 initiate_resuscitation=False
-            )
-        elif observation.waiting_patients:
-            patient = observation.waiting_patients[0]
-            action = TriageAction(
-                patient_id=patient.id,
-                esi_level=ESILevel.URGENT,
-                order_tests=["CBC"]
             )
         else:
             break
@@ -70,17 +113,14 @@ def run_episode(env, episode_num, use_random=True):
         "mortality": info['metrics']['total_mortality']
     }
 
+
 def main():
     print("="*60)
-    print("Medical Triage Environment - Baseline Inference")
+    print("Medical Triage Environment - Rule-Based Baseline")
     print("="*60)
     
-    if not API_KEY:
-        print("\n[INFO] No API_KEY found. Running with random agent...")
-        use_random = True
-    else:
-        print(f"\n[INFO] API configured. Using random agent for baseline...")
-        use_random = True
+    print("\n[INFO] Running with rule-based agent...")
+    use_rule_based = True
     
     # Create environment
     env = MedicalTriageEnv(max_steps=MAX_STEPS, random_seed=42)
@@ -88,12 +128,12 @@ def main():
     # Run episodes
     results = []
     for episode in range(1, 4):
-        result = run_episode(env, episode, use_random)
+        result = run_episode(env, episode, use_rule_based)
         results.append(result)
     
     # Print summary
     print("\n" + "="*60)
-    print("FINAL SUMMARY")
+    print("FINAL SUMMARY - Rule-Based Agent")
     print("="*60)
     
     total_reward = sum(r["total_reward"] for r in results)
@@ -117,8 +157,9 @@ def main():
         print(f"  LWBS Rate: {total_lwbs/total_arrivals:.1%}")
         print(f"  Mortality Rate: {total_mortality/total_arrivals:.1%}")
     print(f"{'='*60}")
-    print("\n[OK] Baseline inference complete!")
+    print("\n[OK] Rule-based baseline complete!")
     print("[OK] Environment ready for submission.")
+
 
 if __name__ == "__main__":
     main()
