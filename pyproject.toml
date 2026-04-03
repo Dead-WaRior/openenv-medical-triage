@@ -25,6 +25,7 @@ dependencies = [
 ]
 
 [project.scripts]
+openenv-server = "server.app:start_server"
 server = "server.app:main"
 
 [tool.setuptools]
